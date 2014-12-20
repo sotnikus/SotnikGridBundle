@@ -1,0 +1,3 @@
+sotnik_grid_homepage:
+    path:     /hello/{name}
+    defaults: { _controller: SotnikGridBundle:Default:index }

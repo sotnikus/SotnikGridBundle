@@ -1,0 +1,4 @@
+services:
+    sotnik_grid:
+        class: Sotnik\GridBundle\Grid\Grid
+        arguments: [@service_container]

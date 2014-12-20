@@ -1,0 +1,220 @@
+{# ---------------------- Grid table  ---------------------- #}
+{% block grid_table %}
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                {% for column in columns %}
+                    <th>
+                    {% if queryParams[sortParameterName] is defined and queryParams[sortParameterName] == column.id~"~desc" %}
+                        <a href="{{ path(route, queryParams|merge({(sortParameterName) : (column.id)~"~asc"})) }}">{{ column.label }}
+                            <span class="glyphicon glyphicon-chevron-up" aria-hidden="true"></span>
+                        </a>
+                    {% elseif queryParams[sortParameterName] is defined and queryParams[sortParameterName] == column.id~"~asc" %}
+                        <a href="{{ path(route, queryParams|merge({(sortParameterName) : (column.id)~"~desc"})) }}">{{ column.label }}
+                            <span class="glyphicon glyphicon-chevron-down" aria-hidden="true"></span>
+                        </a>
+                    {% else %}
+                        <a href="{{ path(route, queryParams|merge({(sortParameterName) : (column.id)~"~desc"})) }}">{{ column.label }}</a>
+                    {% endif %}
+                    </th>
+                {% endfor %}
+            <tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                {{ row|raw }}
+            {% else %}
+                <tr><td colspan="{{ columns|length}}">No results found</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
+{# ---------------------- Grid Row  ---------------------- #}
+{% block grid_row %}
+    <tr>
+    {% for column in columns %}
+        <td>{{ column }}</td>
+    {% endfor %}
+    </tr>
+{% endblock %}
+{# ---------------------- Pagination ---------------------- #}
+{% block pagination %}
+    <span>Total count: {{ totalCount }} (Pages: {{ totalPages }})</span>
+    <nav class="sotnik-grid-pagination-pagination" data-grid-id="{{ gridId }}">
+    {% if totalPages > 1 %}
+        <ul class="pagination">
+            {% if currentPage > 1 %}
+                <li>
+                    <a href="{{ path(route, queryParams|merge({(pageParameterName) : (currentPage - 1)})) }}">
+                        <span aria-hidden="true">&laquo;</span><span class="sr-only">Previous</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="disabled">
+                    <a href="#"><span aria-hidden="true">&laquo;</span><span class="sr-only">Previous</span></a>
+                </li>
+            {% endif %}
+
+            {% if currentPage <= 5 %}
+                {% for page in range(1, 10) if page <= totalPages %}
+                    <li {% if page ==  currentPage%} class="active"  {% endif %} >
+                        <a href="{{ path(route, queryParams|merge({(pageParameterName) : (page)})) }}">{{ page }}</a>
+                    </li>
+                {% endfor %}
+            {% else %}
+                {% for page in range(currentPage - 5, currentPage) %}
+                    <li {% if page ==  currentPage%} class="active"  {% endif %} >
+                        <a href="{{ path(route, queryParams|merge({(pageParameterName) : (page)})) }}">{{ page }}</a>
+                    </li>
+                {% endfor %}
+                {% for page in range(currentPage + 1, currentPage + 4) if page <= totalPages %}
+                    <li>
+                        <a href="{{ path(route, queryParams|merge({(pageParameterName) : (page)})) }}">{{ page }}</a>
+                    </li>
+                {% endfor %}
+            {% endif %}
+
+            {% if currentPage < totalPages %}
+                <li>
+                    <a href="{{ path(route, queryParams|merge({(pageParameterName) : (currentPage + 1)})) }}">
+                        <span aria-hidden="true">&raquo;</span><span class="sr-only">{{ 'Next'|trans }}</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="disabled">
+                    <a href="#"><span aria-hidden="true">&raquo;</span><span class="sr-only">{{ 'Next'|trans }}</span></a>
+                </li>
+            {% endif %}
+        </ul>
+        <form action="{{ path(route, queryParams) }}" class="sotnik-grid-pagination-go-to-page">
+            <span>Go to page:</span>
+            <input name="{{ pageParameterName }}" type="text" value="">
+            <button style="display: none" type="submit" class="btn btn-default">Go</button>
+        </form>
+        &nbsp;&nbsp;
+    {% endif %}
+
+        <span>Per page:</span>
+        <select class="sotnik-grid-pagination-per-page-selection">
+        {% for perPageOption in perPageOptions %}
+            <option {% if selectedPerPageOption == perPageOption %}selected="selected"{% endif %}value="{{ perPageOption }}">{{ perPageOption }}</option>
+        {% endfor %}
+        </select>
+    </nav>
+{% endblock %}
+
+{# ---------------------- Filters ---------------------- #}
+{% block filters %}
+    {% set columnsFiltersHtml = ''%}
+    {% set hasAtLeastOneActiveFilter = false %}
+
+    {% for columnFilter in columnsFilters %}
+
+        {% set filterNames = [] %}
+        {% set inputs = [] %}
+        {% set selectedIndex = 0 %}
+        {% set columnId = columnFilter['columnId'] %}
+        {% set label = columnFilter['label'] %}
+
+        {#Render one column filter collection #}
+        {% for filter in columnFilter['filters'] %}
+
+            {% set filterNames = filterNames|merge([filter.name]) %}
+
+            {% if filter.value is iterable %}
+                {% for value in filter.value %}
+                    {% if value|length > 0 %}
+                        {% set selectedIndex =  loop.parent.loop.index0 %}
+                        {% set hasAtLeastOneActiveFilter = true %}
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                {% if filter.value|length > 0 %}
+                    {% set selectedIndex =  loop.index0 %}
+                    {% set hasAtLeastOneActiveFilter = true %}
+                {% endif %}
+            {% endif %}
+
+            {#Input render#}
+            {% if filter.renderType == constant('Sotnik\\GridBundle\\ColumnFilter\\Filter\\ColumnFilterInterface::INPUT') %}
+                {% set filterInput %}
+                <input name="{{ gridId }}{{ columnId }}~{{ filter.name }}" type="text" value="{{ filter.value }}">
+                {% endset %}
+
+                {#Select render#}
+            {% elseif filter.renderType == constant('Sotnik\\GridBundle\\ColumnFilter\\Filter\\ColumnFilterInterface::SELECT') %}
+                {% set filterInput %}
+                <select name="{{ gridId }}{{ columnId }}~{{ filter.name }}">
+                    <option value="">no selected</option>
+                    {% for case in filter.cases %}
+                        <option value="{{ case['value'] }}" {% if filter.value == case['value'] %} selected="selected" {% endif %}>{{ case['label'] }}</option>
+                    {% endfor %}
+                </select>
+                {% endset %}
+
+                {#Multi select render#}
+            {% elseif filter.renderType == constant('Sotnik\\GridBundle\\ColumnFilter\\Filter\\ColumnFilterInterface::MULTI_SELECT') %}
+                {% set filterInput %}
+                <select multiple="multiple" size="4" name="{{ gridId }}{{ columnId }}~{{ filter.name }}[]">
+                    {% for case in filter.cases %}
+                        <option value="{{ case['value'] }}" {% if case['value'] in  filter.value %} selected="selected" {% endif %}>{{ case['label'] }}</option>
+                    {% endfor %}
+                </select>
+                {% endset %}
+
+                {#Between input render#}
+            {% elseif filter.renderType == constant('Sotnik\\GridBundle\\ColumnFilter\\Filter\\ColumnFilterInterface::BETWEEN_INPUT') %}
+                {% set filterInput %}
+                <input name="{{ gridId }}{{ columnId }}~{{ filter.name }}[from]" type="text" value="{% if filter.value['from'] is defined %}{{ filter.value['from'] }}{% endif %}"> -
+                <input name="{{ gridId }}{{ columnId }}~{{ filter.name }}[to]" type="text" value="{% if filter.value['to'] is defined %}{{ filter.value['to'] }}{% endif %}">
+                {% endset %}
+
+            {% endif %}
+
+            {% set inputs = inputs|merge([filterInput]) %}
+        {% endfor %}
+
+        {#one column filter collection html#}
+        {% set columnFiltersHtml %}
+            <tr class="sotnik-grid-column-filter">
+                <td>
+                    <label>{{ label }}</label>
+                </td>
+                <td>
+                    <select class="sotnik-grid-column-filter-select">
+                        {%  for finterName in filterNames %}
+                            <option {% if loop.index0 == selectedIndex %} selected="selected" {% endif %}>
+                                {{ finterName }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>
+                    {% for input in inputs %}
+                        <span class="sotnik-grid-column-filter-value" {% if loop.index0 != selectedIndex %} style="display:none" {% endif %}>
+                            {{ input|raw }}
+                        </span>
+                    {% endfor %}
+                </td>
+            </tr>
+        {% endset %}
+
+        {% set columnsFiltersHtml = columnsFiltersHtml ~ columnFiltersHtml %}
+    {% endfor %}
+
+    {#all filters html#}
+    <div class="sotnik-grid-filter">
+        <a class="sotnik-grid-filter-open" href="javascript:void(0)">Filter</a>
+        <div class="sotnik-grid-filter-filters" {% if hasAtLeastOneActiveFilter == false %}style="display: none"{% endif %}>
+            <form method="get" action="{{ path(route) }}" data-grid-id="{{ gridId }}">
+                <table>
+                    {{ columnsFiltersHtml|raw }}
+                </table>
+                <input hidden="hidden" name="{{ gridId }}{{ constant('Sotnik\\GridBundle\\Grid\\Grid::PER_PAGE_PARAMETER') }}" value="{{ perPage }}">
+                <button type="submit" class="btn btn-primary btn-sm">Submit</button>
+                <a class="sotnik-grid-filter-reset" href="{{ path(route) }}">Reset</a>
+            </form>
+        </div>
+    </div>
+
+{% endblock %}

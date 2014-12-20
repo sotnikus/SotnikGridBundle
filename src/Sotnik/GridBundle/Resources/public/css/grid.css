@@ -1,0 +1,48 @@
+.sotnik-grid-filter {
+    margin-bottom: 10px;
+}
+
+.sotnik-grid-filter td {
+    padding: 7px;
+}
+
+.sotnik-grid-filter select {
+    min-width: 170px;
+}
+
+.sotnik-grid-filter-open {
+    display: block;
+}
+
+.sotnik-grid-filter-open:hover,
+.sotnik-grid-filter-open:active,
+.sotnik-grid-filter-open:focus {
+    outline: 0;
+}
+
+.sotnik-grid-filter-filters {
+    float: left;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    display: block;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+}
+
+.sotnik-grid-pagination-pagination {
+    margin-top: 10px;
+}
+
+.sotnik-grid-pagination-pagination ul{
+    display: inline;
+}
+
+.sotnik-grid-pagination-go-to-page {
+    display: inline-block;
+    margin-left: 30px;
+}
+
+.sotnik-grid-pagination-go-to-page input {
+    width: 40px;
+}
