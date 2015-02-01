@@ -26,9 +26,11 @@ interface PaginationInterface
     public function getMaxPerPage();
 
     /**
+     * @param int $hydrationMode
      * @return integer
+     * @throws \InvalidArgumentException
      */
-    public function getResult();
+    public function getResult($hydrationMode);
 
     /**
      * @return integer
@@ -39,6 +41,11 @@ interface PaginationInterface
      * @return integer
      */
     public function getTotalPages();
+
+    /**
+     * @return bool
+     */
+    public function getLeftJoinCollection();
 
     /**
      * @return \Doctrine\ORM\QueryBuilder

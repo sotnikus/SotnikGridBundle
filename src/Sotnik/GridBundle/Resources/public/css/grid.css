@@ -10,8 +10,13 @@
     min-width: 170px;
 }
 
-.sotnik-grid-filter-open {
-    display: block;
+.sotnik-grid-filter-open a{
+    text-decoration: underline;
+}
+
+.sotnik-grid-column-filter input,
+.sotnik-grid-column-filter select {
+    min-width: 200px;
 }
 
 .sotnik-grid-filter-open:hover,
@@ -30,6 +35,10 @@
     border: 1px solid #ddd;
 }
 
+.sotnik-grid-column-filter-value {
+    position: relative;
+}
+
 .sotnik-grid-pagination-pagination {
     margin-top: 10px;
 }
@@ -45,4 +54,12 @@
 
 .sotnik-grid-pagination-go-to-page input {
     width: 40px;
+}
+
+.sotnik-grid-batch-column {
+    width: 15px;
+}
+
+.sotnik-grid-batch-select {
+    margin-bottom: 20px;
 }

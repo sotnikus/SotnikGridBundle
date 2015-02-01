@@ -3,7 +3,7 @@ namespace Sotnik\GridBundle\ColumnFilter\Filter;
 
 use Doctrine\ORM\QueryBuilder;
 
-class LessThan extends BaseFilter implements ColumnFilterInterface
+class StartsWith extends BaseFilter implements ColumnFilterInterface
 {
     /**
      * @param QueryBuilder $queryBuilder
@@ -13,7 +13,7 @@ class LessThan extends BaseFilter implements ColumnFilterInterface
     {
         $paramName = $this->getParamName();
 
-        return $queryBuilder->andWhere($this->queryMapping . ' < :' . $paramName)
-            ->setParameter($paramName, $this->getValue());
+        return $queryBuilder->andWhere($this->queryMapping . ' LIKE :' . $paramName)
+            ->setParameter($paramName, $this->getValue() . '%');
     }
 }

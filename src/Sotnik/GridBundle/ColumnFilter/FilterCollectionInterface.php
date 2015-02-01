@@ -23,6 +23,11 @@ interface FilterCollectionInterface
     public function getFilters();
 
     /**
+     * @return void
+     */
+    public function reset();
+
+    /**
      * @return integer
      */
     public function count();

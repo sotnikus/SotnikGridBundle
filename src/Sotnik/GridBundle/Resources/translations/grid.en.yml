@@ -1,0 +1,38 @@
+Total count: Total count
+Pages: Pages
+No results found: No results found
+Per page: Per page
+Previous: Previous
+Next: Next
+Go to page: Go to page
+Filter: Filter
+Reset: Reset
+Submit: Submit
+Actions: Actions
+
+no selected: no selected
+is-not-defined: is not defined
+is-defined: is defined
+
+#Filter names
+
+starts-with: starts with
+ends-with: ends with
+contains: contains
+not-contain: not contain
+
+multiple-select: multiple select
+select: select
+
+equals: equals
+not-equal-to: not equal to
+lower-than: lower than
+lower-than-or-equal-to: lower than or equal to
+greater-than: greater than
+greater-than-or-equal-to: greater than or equal to
+between-exclusive: between exclusive
+between-inclusive: between inclusive
+definition-status: definition status
+boolean: status
+date-time-interval: interval
+date-time-equals: equals

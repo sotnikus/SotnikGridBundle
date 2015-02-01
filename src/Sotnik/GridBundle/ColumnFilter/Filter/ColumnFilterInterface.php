@@ -13,6 +13,10 @@ interface ColumnFilterInterface
 
     const BETWEEN_INPUT = 'between-input';
 
+    const BETWEEN_DATETIME = 'between-datetime';
+
+    const INPUT_DATETIME = 'input-datetime';
+
     /**
      * @param QueryBuilder $queryBuilder
      * @return QueryBuilder

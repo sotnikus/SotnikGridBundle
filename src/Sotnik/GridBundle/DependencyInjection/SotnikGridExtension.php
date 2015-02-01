@@ -24,5 +24,7 @@ class SotnikGridExtension extends Extension
 
         $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.yml');
+
+        $container->setParameter('sotnik_grid.per_page_limits', $config['per_page_limits']);
     }
 }

@@ -1,4 +1,5 @@
 services:
-    sotnik_grid:
+    sotnik.grid:
         class: Sotnik\GridBundle\Grid\Grid
         arguments: [@service_container]
+        scope: prototype

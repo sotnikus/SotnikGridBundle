@@ -3,7 +3,7 @@ namespace Sotnik\GridBundle\ColumnFilter\Filter;
 
 use Doctrine\ORM\QueryBuilder;
 
-class MultiSelect extends Select
+class MultipleSelect extends Select implements ColumnFilterInterface, SelectFilterInterface
 {
     private $size = 4;
 

@@ -2,11 +2,17 @@
 
 namespace Sotnik\GridBundle\Grid;
 
+use Doctrine\ORM\Query;
+use Sotnik\GridBundle\Batch\BatchActionInterface;
+use Sotnik\GridBundle\Batch\BatchRequestHandler;
 use Sotnik\GridBundle\Column\ColumnInterface;
 use Doctrine\ORM\QueryBuilder;
 use Sotnik\GridBundle\Exception\GridException;
+use Sotnik\GridBundle\Exception\InvalidArgumentException;
 use Sotnik\GridBundle\Exception\InvalidGridIdException;
 use Sotnik\GridBundle\Exception\InvalidValueException;
+use Sotnik\GridBundle\RowAction\ActionColumnInterface;
+use Sotnik\GridBundle\RowAction\Action;
 use Symfony\Component\HttpFoundation\Request;
 use Sotnik\GridBundle\Pagination\Pagination;
 use Twig_Environment;
@@ -23,6 +29,8 @@ class Grid implements GridInterface
 
     const SORT_PARAMETER = 'sort';
 
+    const GRID_BLOCK_NAME = 'grid';
+
     const GRID_ROW_TEMPLATE_BLOCK_NAME = 'grid_row';
 
     const GRID_TABLE_TEMPLATE_BLOCK_NAME = 'grid_table';
@@ -33,6 +41,10 @@ class Grid implements GridInterface
 
     const GRID_FILTER_BLOCK_NAME = 'column_filter_collection';
 
+    const GRID_INLINE_ACTION_COLUMN_BLOCK_NAME = 'inline_action_column';
+
+    const GRID_DROP_DOWN_ACTION_COLUMN_BLOCK_NAME = 'drop_down_action_column';
+
     /**
      * @var string
      */
@@ -42,6 +54,16 @@ class Grid implements GridInterface
      * @var ColumnInterface[]
      */
     private $columns = array();
+
+    /**
+     * @var BatchActionInterface[]
+     */
+    private $batchActions = [];
+
+    /**
+     * @var \Closure
+     */
+    private $batchActionIdGetter;
 
     /**
      * @var QueryBuilder
@@ -64,6 +86,11 @@ class Grid implements GridInterface
     private $gridTemplate = self::GRID_TEMPLATE;
 
     /**
+     * @var int
+     */
+    private $hydrationMode;
+
+    /**
      * @var Twig_Environment
      */
     private $twig;
@@ -76,13 +103,25 @@ class Grid implements GridInterface
     /**
      * @var array
      */
-    private $perPageOptions = [20, 50, 100];
+    private $perPageLimits = [20, 50, 100];
+
+    /**
+     * @var ActionColumnInterface[]
+     */
+    private $rowActions = [];
+
+    /**
+     * @var bool
+     */
+    private $leftJoinCollection = true;
 
     public function __construct($serviceContainer)
     {
         $this->serviceContainer = $serviceContainer;
         $this->request = $this->serviceContainer->get('request');
         $this->twig = $this->serviceContainer->get('twig');
+
+        $this->setPerPageLimits($serviceContainer->getParameter('sotnik_grid.per_page_limits'));
     }
 
     /**
@@ -102,11 +141,18 @@ class Grid implements GridInterface
     }
 
     /**
-     * @param \Doctrine\ORM\QueryBuilder $queryBuilder
+     * @param QueryBuilder $queryBuilder
+     * @param int $hydrationMode
+     * @param bool $leftJoinCollection
      */
-    public function setSource(QueryBuilder $queryBuilder)
-    {
+    public function setSource(
+        QueryBuilder $queryBuilder,
+        $hydrationMode = Query::HYDRATE_OBJECT,
+        $leftJoinCollection = true
+    ) {
+        $this->hydrationMode = $hydrationMode;
         $this->queryBuilder = $queryBuilder;
+        $this->leftJoinCollection = $leftJoinCollection;
     }
 
     /**
@@ -122,28 +168,28 @@ class Grid implements GridInterface
      * @throws InvalidValueException
      * @return mixed
      */
-    public function setPerPageOptions(array $perPageOptions)
+    public function setPerPageLimits(array $perPageOptions)
     {
         $nonInt = array_filter(
             $perPageOptions,
             function ($el) {
-                return is_integer($el) ? true : false;
+                return !is_integer($el);
             }
         );
 
         if (count($nonInt) > 0) {
-            throw new InvalidValueException('perPageOptions contains non-integer value');
+            throw new InvalidValueException('perPageLimits contains non-integer value');
         }
 
-        $this->perPageOptions = $perPageOptions;
+        $this->perPageLimits = $perPageOptions;
     }
 
     /**
      * @return array
      */
-    public function getPerPageOptions()
+    public function getPerPageLimits()
     {
-        return $this->perPageOptions;
+        return $this->perPageLimits;
     }
 
 
@@ -181,15 +227,58 @@ class Grid implements GridInterface
      */
     public function addColumn(ColumnInterface $column)
     {
+        $column->setHydrationMode($this->hydrationMode);
+
         $this->columns[$column->getId()] = $column;
     }
 
     /**
-     * @return array
+     * @return ColumnInterface[]
      */
     public function getColumns()
     {
         return $this->columns;
+    }
+
+    /**
+     * @param string $idGetter
+     * @param BatchActionInterface[] $batchActions
+     * @throws InvalidArgumentException
+     */
+    public function setBatchActions($idGetter, array $batchActions)
+    {
+        $this->batchActionIdGetter = GridHelper::getQueryMapperClosure($idGetter, $this->hydrationMode);
+
+        foreach ($batchActions as $batchAction) {
+            if (!$batchAction instanceof BatchActionInterface) {
+                throw new InvalidArgumentException('All batch actions should be instance of BatchActionInterface');
+            }
+            $this->batchActions[] = $batchAction;
+        }
+    }
+
+    /**
+     * @return BatchActionInterface[]
+     */
+    public function getBatchActions()
+    {
+        return $this->batchActions;
+    }
+
+    /**
+     * @param ActionColumnInterface $rowActionCollection
+     */
+    public function addActionColumn(ActionColumnInterface $rowActionCollection)
+    {
+        $this->rowActions[] = $rowActionCollection;
+    }
+
+    /**
+     * @return ActionColumnInterface[]
+     */
+    public function getActionColumns()
+    {
+        return $this->rowActions;
     }
 
     //--- render ---
@@ -226,9 +315,11 @@ class Grid implements GridInterface
 
     private function renderGridRow($row)
     {
-        $columnValues = [];
+        $columns = [];
 
-        foreach ($this->getColumns() as $column) {
+        foreach ($this->getColumns() as $index => $column) {
+
+            $columns[$index]['isRaw'] = $column->getIsRaw();
 
             $columnTemplate = $column->getTemplate();
 
@@ -237,14 +328,52 @@ class Grid implements GridInterface
             } else {
                 $templateContent = $this->twig->loadTemplate($columnTemplate);
                 $result = $templateContent->render(['value' => $column->getValueOfResultRow($row)]);
+                $columns[$index]['isRaw'] = true;
             }
 
-            $columnValues[] = $result;
+            $columns[$index]['value'] = $result;
+
         }
 
-        $templateContent = $this->twig->loadTemplate($this->getGridTemplate());
-        return $templateContent->renderBlock(self::GRID_ROW_TEMPLATE_BLOCK_NAME, ['columns' => $columnValues]);
+        $batchId = null;
+        if (!empty($this->batchActions)) {
+            $idGetterFunction = $this->batchActionIdGetter;
+            $batchId = $idGetterFunction($row);
+        };
 
+        $templateContent = $this->twig->loadTemplate($this->getGridTemplate());
+        return $templateContent->renderBlock(
+            self::GRID_ROW_TEMPLATE_BLOCK_NAME,
+            [
+                'batchId' => $batchId,
+                'columns' => $columns,
+                'gridId' => $this->getId(),
+                'actionColumns' => $this->renderActionColumns($row),
+            ]
+        );
+    }
+
+    private function renderActionColumns($row)
+    {
+        $rowActions = [];
+        $templateContent = $this->twig->loadTemplate($this->getGridTemplate());
+        foreach ($this->getActionColumns() as $rowAction) {
+            $actions = $rowAction->getActions();
+            array_map(
+                function ($el) use ($row) {
+                    /** @var $el Action */
+                    return $el->handleUrlGetter($row);
+                },
+                $actions
+            );
+
+            $blockName = strtolower(
+                preg_replace('/([a-z])([A-Z])/', '$1_$2', (new \ReflectionClass($rowAction))->getShortName())
+            );
+            $rowActions[] = $templateContent->renderBlock($blockName, ['actions' => $actions]);
+        }
+
+        return $rowActions;
     }
 
     private function renderGridTable($rows)
@@ -255,12 +384,20 @@ class Grid implements GridInterface
             $renderedRows[] = $this->renderGridRow($row);
         }
 
+        $batchId = null;
+        if (!empty($this->batchActions)) {
+            $batchId = true;
+        };
+
         $templateContent = $this->twig->loadTemplate($this->getGridTemplate());
         return $templateContent->renderBlock(
             self::GRID_TABLE_TEMPLATE_BLOCK_NAME,
             [
+                'batchId' => $batchId,
+                'gridId' =>$this->getId(),
                 'rows' => $renderedRows,
                 'columns' => $this->getColumns(),
+                'actionColumns' => $this->getActionColumns(),
                 'route' => $this->request->get('_route'),
                 'queryParams' => $this->request->query->all(),
                 'sortParameterName' => $this->getId() . self::SORT_PARAMETER
@@ -280,7 +417,7 @@ class Grid implements GridInterface
         $this->pagination->setMaxPerPage(
             $this->request->query->get(
                 $this->getId() . self::PER_PAGE_PARAMETER,
-                $this->getPerPageOptions()[0]
+                $this->getPerPageLimits()[0]
             )
         );
     }
@@ -298,8 +435,8 @@ class Grid implements GridInterface
                 'route' => $this->request->get('_route'),
                 'queryParams' => $this->request->query->all(),
                 'gridId' => $this->getId(),
-                'perPageOptions' => $this->getPerPageOptions(),
-                'selectedPerPageOption' => $this->pagination->getMaxPerPage()
+                'perPageLimits' => $this->getPerPageLimits(),
+                'selectedPerPageLimit' => $this->pagination->getMaxPerPage()
             ]
         );
     }
@@ -314,19 +451,45 @@ class Grid implements GridInterface
             throw new GridException('Source is not defined');
         }
 
-        $requestToQueryBuilderAdapter = new RequestToQueryBuilderAdapter($this->getSource(), $this->getColumns(
-        ), $this->request);
+        $batchRequestHandler = new BatchRequestHandler(
+            $this->request,
+            $this->getId(),
+            $this->getBatchActions()
+        );
+
+        $batchRequestHandler->handle();
+
+        $requestToQueryBuilderAdapter = new RequestToQueryBuilderAdapter(
+            $this->getSource(),
+            $this->getColumns(),
+            $this->request
+        );
+
         $requestToQueryBuilderAdapter->setParamsPrefix($this->getId());
 
-        $this->setSource($requestToQueryBuilderAdapter->getAdaptedQueryBuilder());
+        $this->setSource($requestToQueryBuilderAdapter->getAdaptedQueryBuilder(), $this->hydrationMode);
 
-        $this->pagination = new Pagination($this->getSource());
+        $this->pagination = new Pagination($this->getSource(), $this->leftJoinCollection);
 
         $this->applyQueryToPagination();
 
-        $result = $this->pagination->getResult();
+        $result = $this->pagination->getResult($this->hydrationMode);
 
-        $html = $this->renderFilters() . $this->renderGridTable($result) . $this->renderPagination();
+        $templateContent = $this->twig->loadTemplate($this->getGridTemplate());
+
+        $html = $templateContent->renderBlock(
+            self::GRID_BLOCK_NAME,
+            [
+                'batchActions' => $this->getBatchActions(),
+                'filter' => $this->renderFilters(),
+                'table' => $this->renderGridTable($result),
+                'pagination' => $this->renderPagination(),
+                'gridId' => $this->getId(),
+                'pageParam' => self::PAGE_PARAMETER,
+                'sortParam' => self::SORT_PARAMETER,
+                'prePageParam' => self::PER_PAGE_PARAMETER
+            ]
+        );
 
         $gridResult = new GridResult($this->pagination->getQuery(), $html);
 

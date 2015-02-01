@@ -3,17 +3,19 @@ namespace Sotnik\GridBundle\ColumnFilter\Filter;
 
 use Doctrine\ORM\QueryBuilder;
 
-class Select extends BaseFilter implements ColumnFilterInterface
+class Select extends BaseFilter implements ColumnFilterInterface, SelectFilterInterface
 {
     private $cases = [];
 
     public function __construct(array $cases)
     {
+        $isAssoc = array_keys($cases) !== range(0, count($cases) - 1);
+
         foreach ($cases as $key => $case) {
-            if (is_int($key)) {
-                $this->cases[] = ['value' => $case, 'label' => $case];
-            } else {
+            if ($isAssoc) {
                 $this->cases[] = ['value' => $key, 'label' => $case];
+            } else {
+                $this->cases[] = ['value' => $case, 'label' => $case];
             }
         }
     }

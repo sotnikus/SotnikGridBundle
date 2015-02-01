@@ -1,6 +1,7 @@
 <?php
 namespace Sotnik\GridBundle\Pagination;
 
+use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 
@@ -17,9 +18,12 @@ class Pagination implements PaginationInterface
 
     private $query;
 
-    public function __construct(QueryBuilder $queryBuilder)
+    private $leftJoinCollection = true;
+
+    public function __construct(QueryBuilder $queryBuilder, $leftJoinCollection = true)
     {
         $this->query = $queryBuilder;
+        $this->leftJoinCollection = $leftJoinCollection;
     }
 
     /**
@@ -45,7 +49,7 @@ class Pagination implements PaginationInterface
      */
     public function setMaxPerPage($maxPerPage)
     {
-        $this->maxPerPage = $maxPerPage;
+        $this->maxPerPage = $maxPerPage > 0 ? $maxPerPage : $this->maxPerPage;
     }
 
     /**
@@ -73,6 +77,14 @@ class Pagination implements PaginationInterface
     }
 
     /**
+     * @return bool
+     */
+    public function getLeftJoinCollection()
+    {
+        return $this->leftJoinCollection;
+    }
+
+    /**
      * @return QueryBuilder
      */
     public function getQuery()
@@ -80,14 +92,25 @@ class Pagination implements PaginationInterface
         return $this->query;
     }
 
-    public function getResult()
+    /**
+     * @param int $hydrationMode
+     * @return Paginator|int
+     * @throws \InvalidArgumentException
+     */
+    public function getResult($hydrationMode)
     {
+        if (!in_array($hydrationMode, [Query::HYDRATE_OBJECT || Query::HYDRATE_ARRAY])) {
+            throw new \InvalidArgumentException('Invalid hydration mode. Should be HYDRATE_OBJECT or HYDRATE_ARRAY');
+        }
 
         $firstResult = $this->maxPerPage * ($this->currentPage - 1);
 
         $this->query = $this->query->setFirstResult($firstResult)->setMaxResults($this->maxPerPage);
 
-        $result = new Paginator($this->query, true);
+        $result = new Paginator(
+            $this->query->getQuery()->setHydrationMode($hydrationMode),
+            $this->getLeftJoinCollection()
+        );
 
         $this->totalCount = count($result);
 
@@ -99,7 +122,7 @@ class Pagination implements PaginationInterface
 
         if ($this->currentPage > $this->totalPages && $this->totalPages > 0) {
             $this->setCurrentPage($this->totalPages);
-            $result = $this->getResult();
+            $result = $this->getResult($hydrationMode);
         }
 
         return $result;

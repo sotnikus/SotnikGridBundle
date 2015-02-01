@@ -31,6 +31,14 @@ class FilterCollection implements FilterCollectionInterface
         return $this->filters;
     }
 
+    /**
+     * @return void
+     */
+    public function reset()
+    {
+        $this->filters = [];
+    }
+
     public function count()
     {
         return count($this->filters);

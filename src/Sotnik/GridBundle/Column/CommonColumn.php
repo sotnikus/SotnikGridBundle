@@ -2,11 +2,13 @@
 
 namespace Sotnik\GridBundle\Column;
 
+use Doctrine\ORM\Query;
 use Sotnik\GridBundle\ColumnFilter\FilterCollectionInterface;
 use Sotnik\GridBundle\ColumnSort\ColumnSort;
 use Sotnik\GridBundle\ColumnSort\ColumnSortInterface;
 use Sotnik\GridBundle\ColumnFilter\Filter\ColumnFilterInterface;
 use Sotnik\GridBundle\Exception\InvalidColumnIdException;
+use Sotnik\GridBundle\Grid\GridHelper;
 use Twig_Environment;
 use Sotnik\GridBundle\ColumnFilter\FilterCollection;
 
@@ -47,34 +49,44 @@ class CommonColumn implements ColumnInterface
      */
     private $filterCollection;
 
+    /**
+     * @var bool
+     */
+    private $sortable = true;
+
+    /**
+     * @var bool
+     */
+    private $isRaw = true;
+
+    /**
+     * @var string
+     */
+    private $width = '';
+
     public function __construct($id, $resultGetter, $queryMapping)
     {
         $this->id = $id;
         $this->validateColumnId();
 
-        if ($resultGetter instanceof \Closure) {
-            $this->resultGetter = $resultGetter;
-        } else {
-            $parts = explode('.', $resultGetter);
-
-            $this->resultGetter = function ($row) use ($parts) {
-                $result = $row;
-                foreach ($parts as $part) {
-                    $getter = 'get' . ucfirst($part);
-                    $result = $result->$getter();
-
-                    if ($result === null) {
-                        return null;
-                    }
-                }
-
-                return $result;
-            };
-        }
+        $this->resultGetter = $resultGetter;
 
         $this->filterCollection = new FilterCollection();
         $this->queryMapping = $queryMapping;
         $this->setColumnSort(new ColumnSort($this->queryMapping));
+    }
+
+    /**
+     * @param $hydrationMode
+     * @throws \InvalidArgumentException
+     */
+    public function setHydrationMode($hydrationMode)
+    {
+        if (!in_array($hydrationMode, [Query::HYDRATE_OBJECT || Query::HYDRATE_ARRAY])) {
+            throw new \InvalidArgumentException('Invalid hydration mode. Should be HYDRATE_OBJECT or HYDRATE_ARRAY');
+        }
+
+        $this->resultGetter = GridHelper::getQueryMapperClosure($this->resultGetter, $hydrationMode);
     }
 
     private function validateColumnId()
@@ -149,6 +161,54 @@ class CommonColumn implements ColumnInterface
     }
 
     /**
+     * @param bool $sortable
+     */
+    public function setIsSortable($sortable)
+    {
+        $this->sortable = $sortable;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getIsSortable()
+    {
+        return $this->sortable;
+    }
+
+    /**
+     * @param bool $isRaw
+     */
+    public function setIsRaw($isRaw)
+    {
+        $this->isRaw = $isRaw;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getIsRaw()
+    {
+        return $this->isRaw;
+    }
+
+    /**
+     * @param string $width
+     */
+    public function setWidth($width)
+    {
+        $this->width = $width;
+    }
+
+    /**
+     * @return string
+     */
+    public function getWidth()
+    {
+        return $this->width;
+    }
+
+    /**
      * @param ColumnFilterInterface $filter
      * @return mixed
      */
@@ -157,6 +217,15 @@ class CommonColumn implements ColumnInterface
         $filter->setQueryMapping($this->getQueryMapping());
         $this->filterCollection->addFilter($filter);
     }
+
+    /**
+     * @return void
+     */
+    public function resetFilters()
+    {
+        $this->filterCollection->reset();
+    }
+
 
     /**
      * @return FilterCollectionInterface
