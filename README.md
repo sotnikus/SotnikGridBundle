@@ -23,9 +23,9 @@ public function registerBundles()
 ```
 
 Grid dependencies:
-1. Jquery
-2. Bootstrap datetimepicker (if you want to use dateTime filter)
-3. Twitter bootstrap 3
+* Jquery
+* Bootstrap datetimepicker (if you want to use dateTime filter)
+* Twitter bootstrap 3
 
 ```html
 <!DOCTYPE html>
